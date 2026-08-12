@@ -77,7 +77,10 @@
   textarea.field{ resize:none; font-family:inherit; }
 
   .photos-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
-  .photo-slot{ aspect-ratio:1; border-radius:6px; background:#EEF0F1; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; }
+  .photo-slot{ position:relative; aspect-ratio:1; border-radius:6px; background:#EEF0F1; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .photo-slot img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .photo-remove{ position:absolute; top:2px; right:2px; width:16px; height:16px; border-radius:50%; background:rgba(30,34,38,.65); border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .photo-remove svg{ stroke:#fff; }
   .photo-add{ aspect-ratio:1; border-radius:6px; background:none; border:2px dashed #C9CDD1; display:flex; align-items:center; justify-content:center; cursor:pointer; }
   .photo-label{ font-size:11px; font-weight:600; color:var(--steel-light); margin-bottom:6px; }
 
@@ -86,11 +89,47 @@
   .sig-placeholder{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; color:#B4B9BE; pointer-events:none; }
   .sig-clear{ position:absolute; top:8px; right:8px; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:5px 8px; font-size:10px; font-weight:600; color:var(--steel-light); display:flex; align-items:center; gap:4px; cursor:pointer; }
 
-  .footer{ padding:12px 16px; background:var(--card); border-top:1px solid var(--border); flex-shrink:0; }
-  .btn-primary{ width:100%; border:none; border-radius:8px; padding:15px; font-size:14px; font-weight:700; font-family:inherit; color:#fff; background:var(--red); cursor:pointer; }
+  .footer{ padding:12px 16px; background:var(--card); border-top:1px solid var(--border); flex-shrink:0; display:flex; gap:8px; }
+  .btn-primary{ flex:1; border:none; border-radius:8px; padding:15px; font-size:14px; font-weight:700; font-family:inherit; color:#fff; background:var(--red); cursor:pointer; }
   .btn-primary:disabled{ background:#E5E7E9; color:#AEB4B9; }
   .btn-primary.done{ background:#2E8B57; }
+  .btn-print{ display:none; align-items:center; justify-content:center; gap:6px; border:1px solid var(--border); border-radius:8px; padding:0 16px; font-size:13px; font-weight:700; font-family:inherit; color:var(--steel); background:var(--card); cursor:pointer; flex-shrink:0; }
+  .btn-print.show{ display:flex; }
   .link-btn{ background:none; border:none; display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#3D7AA6; padding:0; cursor:pointer; font-family:inherit; }
+
+  /* Suppression */
+  .topbar-spacer{ flex:1; }
+  .icon-btn{ background:none; border:none; padding:8px; display:flex; align-items:center; cursor:pointer; border-radius:8px; }
+  .icon-btn svg{ stroke:#fff; }
+  .icon-btn.danger:active{ background:rgba(255,255,255,.12); }
+  .card-delete{ background:none; border:none; padding:6px; margin:-6px -6px -6px 0; cursor:pointer; display:flex; align-items:center; flex-shrink:0; border-radius:6px; }
+  .card-delete svg{ stroke:var(--steel-light); }
+  .card-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+
+  /* Impression : n'affiche que la fiche courante, sans les contrôles */
+  @media print{
+    body{ background:#fff; padding:0; }
+    .screen{ display:none !important; }
+    #screen-fiche.active{ display:block !important; height:auto; }
+    #screen-fiche .back-btn, #screen-fiche .icon-btn, #screen-fiche .footer,
+    .sig-clear, .photo-add{ display:none !important; }
+    #screen-fiche .topbar{ background:#fff !important; padding:0 0 12px; border-bottom:2px solid var(--steel); }
+    #screen-fiche .title, #screen-fiche .eyebrow{ color:var(--steel) !important; }
+    #screen-fiche .fiche-id{ color:var(--red) !important; }
+    #screen-fiche .content{ overflow:visible; padding:16px 0; gap:14px; }
+    .field, textarea.field{ border:1px solid var(--border) !important; }
+  }
+
+  /* Boîte de confirmation personnalisée (remplace window.confirm, bloqué dans certains aperçus) */
+  .confirm-overlay{ display:none; position:fixed; inset:0; background:rgba(30,34,38,.55); z-index:50; align-items:center; justify-content:center; padding:24px; }
+  .confirm-overlay.active{ display:flex; }
+  .confirm-box{ background:var(--card); border-radius:14px; padding:20px; width:100%; max-width:300px; box-shadow:0 12px 30px rgba(0,0,0,.25); }
+  .confirm-title{ font-weight:700; font-size:15px; color:var(--steel); margin-bottom:6px; }
+  .confirm-msg{ font-size:13px; color:var(--steel-light); line-height:1.5; margin-bottom:16px; }
+  .confirm-actions{ display:flex; gap:8px; }
+  .confirm-actions button{ flex:1; border:none; border-radius:8px; padding:11px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; }
+  .confirm-cancel{ background:#EEF0F1; color:var(--steel); }
+  .confirm-ok{ background:var(--red); color:#fff; }
 </style>
 </head>
 <body>
@@ -158,6 +197,10 @@
       <div class="title">Fiche d'intervention</div>
       <div class="fiche-id" id="fiche-id"></div>
     </div>
+    <div class="topbar-spacer"></div>
+    <button class="icon-btn danger" onclick="deleteFiche()" title="Supprimer">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
+    </button>
   </div>
   <div class="content">
     <div>
@@ -205,6 +248,22 @@
   </div>
   <div class="footer">
     <button class="btn-primary" id="btn-valider" onclick="validerFiche()">Valider la fiche</button>
+    <button class="btn-print" id="btn-print" onclick="window.print()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+      Imprimer
+    </button>
+  </div>
+</div>
+
+<!-- Boîte de confirmation (suppression) -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-title">Supprimer la fiche ?</div>
+    <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="confirm-actions">
+      <button class="confirm-cancel" onclick="closeConfirm()">Annuler</button>
+      <button class="confirm-ok" onclick="confirmOk()">Supprimer</button>
+    </div>
   </div>
 </div>
 
@@ -243,10 +302,15 @@ function renderList(){
     return;
   }
   container.innerHTML = filtered.map(it => `
-    <button class="card" onclick="openFiche('${it.id}')">
-      <div class="meta">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        ${it.date} · ${it.heure}
+    <div class="card" onclick="openFiche('${it.id}')">
+      <div class="card-top">
+        <div class="meta">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          ${it.date} · ${it.heure}
+        </div>
+        <button class="card-delete" onclick="event.stopPropagation(); deleteIntervention('${it.id}')" title="Supprimer">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
+        </button>
       </div>
       <div class="client">${escapeHtml(it.client)}</div>
       <div class="addr">
@@ -257,10 +321,43 @@ function renderList(){
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m14.7 6.3-1.4 1.4 3 3 1.4-1.4a3 3 0 0 0-3-3ZM3 21l4-1 9.6-9.6-3-3L4 17l-1 4Z"/></svg>
         ${escapeHtml(it.motif)}
       </div>
-    </button>
+    </div>
   `).join('');
 }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- Confirmation (remplace window.confirm) ----------
+let confirmCallback = null;
+function showConfirm(msg, cb){
+  document.getElementById('confirm-msg').textContent = msg;
+  confirmCallback = cb;
+  document.getElementById('confirm-overlay').classList.add('active');
+}
+function closeConfirm(){
+  document.getElementById('confirm-overlay').classList.remove('active');
+  confirmCallback = null;
+}
+function confirmOk(){
+  if(confirmCallback) confirmCallback();
+  closeConfirm();
+}
+
+function deleteIntervention(id){
+  const it = interventions.find(i => i.id === id);
+  if(!it) return;
+  showConfirm(`${it.id} — ${it.client}. Cette action est définitive.`, () => {
+    interventions = interventions.filter(i => i.id !== id);
+    renderList();
+  });
+}
+function deleteFiche(){
+  if(!currentFiche) return;
+  showConfirm(`${currentFiche.id} — ${currentFiche.client}. Cette action est définitive.`, () => {
+    interventions = interventions.filter(i => i.id !== currentFiche.id);
+    currentFiche = null;
+    showScreen('list');
+  });
+}
 
 // ---------- Création ----------
 function checkValid(){
@@ -294,18 +391,45 @@ function openFiche(id){
   const btn = document.getElementById('btn-valider');
   btn.textContent = 'Valider la fiche';
   btn.classList.remove('done');
+  document.getElementById('btn-print').classList.remove('show');
   showScreen('fiche');
   setTimeout(initSignature, 0);
 }
 function photoSlots(){
-  return `<button class="photo-add" onclick="this.outerHTML='<div class=\\'photo-slot\\'><svg width=14 height=14 viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'%236B7684\\' stroke-width=2><path d=\\'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z\\'/><circle cx=12 cy=13 r=4/></svg></div>' + this.outerHTML">
+  return `<button class="photo-add" onclick="addPhoto(this)">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C41E2E" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg>
   </button>`;
+}
+function addPhoto(btn){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.capture = 'environment'; // ouvre l'appareil photo arrière directement sur mobile
+  input.style.display = 'none';
+  input.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const slot = document.createElement('div');
+      slot.className = 'photo-slot filled';
+      slot.innerHTML = `<img src="${ev.target.result}" alt="photo intervention">
+        <button class="photo-remove" onclick="this.parentElement.remove()" title="Retirer">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>`;
+      btn.parentNode.insertBefore(slot, btn);
+    };
+    reader.readAsDataURL(file);
+  });
+  document.body.appendChild(input);
+  input.click();
+  setTimeout(() => input.remove(), 1000);
 }
 function validerFiche(){
   const btn = document.getElementById('btn-valider');
   btn.textContent = 'Fiche enregistrée ✓';
   btn.classList.add('done');
+  document.getElementById('btn-print').classList.add('show');
 }
 
 // ---------- Signature (canvas) ----------
