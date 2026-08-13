@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Interventions Maupu</title>
+
+<!-- Réglages iOS : permet l'ajout à l'écran d'accueil en mode plein écran, sans barre Safari -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Interventions" />
+<!-- Remplacer par le vrai logo Maupu (PNG 180x180 recommandé) -->
+<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="manifest" href="manifest.json" />
+
+<style>
+  :root{
+    --red:#C41E2E; --red-dark:#9E1622;
+    --steel:#3D4750; --steel-light:#6B7684;
+    --border:#DDE1E4; --bg:#F4F5F6; --card:#FFFFFF;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; margin:0;}
+  body{
+    font-family:'Barlow','Barlow Condensed',system-ui,sans-serif;
+    background:var(--bg); color:var(--steel);
+    /* évite que le contenu passe sous l'encoche / la barre du bas iPhone */
+    padding-top:env(safe-area-inset-top);
+    padding-bottom:env(safe-area-inset-bottom);
+    overscroll-behavior:none;
+  }
+  .screen{ display:none; flex-direction:column; height:100vh; height:100dvh; }
+  .screen.active{ display:flex; }
+
+  /* Header */
+  .topbar{ background:var(--steel); padding:16px; display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .logo-box{ width:36px; height:36px; border-radius:8px; background:#fff; flex-shrink:0; display:flex; align-items:center; justify-content:center; overflow:hidden;}
+  .logo-box img{ width:100%; height:100%; object-fit:contain; padding:2px; }
+  .eyebrow{ font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.6); font-weight:600; }
+  .title{ font-size:20px; font-weight:700; color:#fff; letter-spacing:-0.02em; }
+  .topbar.with-back{ gap:6px; }
+  .back-btn{ background:none; border:none; padding:6px; margin-left:-6px; display:flex; align-items:center; cursor:pointer; }
+  .back-btn svg{ stroke:#fff; }
+  .fiche-id{ font-size:11px; font-weight:600; color:#FF8A94; }
+  .sync-pill{ font-size:10px; font-weight:700; font-family:inherit; padding:4px 9px; border-radius:99px; margin-left:auto; white-space:nowrap; flex-shrink:0; }
+  .sync-pill.online{ background:rgba(46,139,87,.25); color:#8FD9A8; }
+  .sync-pill.offline{ background:rgba(255,255,255,.14); color:#FFB4BA; }
+  .sync-pill.syncing{ background:rgba(255,255,255,.14); color:#FFD98F; }
+  .pending-tag{ font-size:9px; font-weight:700; color:#B8791F; background:#FCEFD8; border-radius:99px; padding:2px 7px; margin-left:6px; }
+
+  /* Search */
+  .search-wrap{ padding:12px 16px; }
+  .search-box{ display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .search-box input{ border:none; outline:none; background:transparent; font-size:14px; flex:1; font-family:inherit; color:var(--steel); }
+
+  /* List */
+  .list{ flex:1; overflow-y:auto; padding:0 16px 96px; display:flex; flex-direction:column; gap:10px; -webkit-overflow-scrolling:touch; }
+  .empty{ text-align:center; font-size:13px; color:var(--steel-light); padding-top:32px; }
+  .card{ background:var(--card); border:1px solid var(--border); border-left:4px solid var(--red); border-radius:12px; padding:14px; text-align:left; cursor:pointer; }
+  .card:active{ transform:scale(.98); }
+  .card .meta{ display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--steel-light); margin-bottom:8px; }
+  .card .client{ font-size:16px; font-weight:700; color:var(--steel); margin-bottom:3px; }
+  .card .addr{ display:flex; align-items:center; gap:5px; font-size:12px; color:var(--steel-light); margin-bottom:6px; }
+  .card .motif{ display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:var(--red); }
+
+  .fab{ position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); right:20px; width:56px; height:56px; border-radius:50%; background:var(--red); border:none; box-shadow:0 8px 20px rgba(196,30,46,.35); display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:20; }
+  .fab:active{ transform:scale(.9); }
+
+  /* Form / fiche */
+  .content{ flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:16px; -webkit-overflow-scrolling:touch; }
+  .section-label{ font-size:10px; font-weight:700; letter-spacing:.15em; text-transform:uppercase; color:var(--steel-light); margin-bottom:6px; }
+  .field{ width:100%; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:12px 14px; font-size:14px; font-family:inherit; color:var(--steel); margin-bottom:8px; }
+  .field:focus{ outline:none; border-color:var(--red); }
+  .field-row{ display:flex; gap:8px; }
+  .field-row .field{ margin-bottom:0; }
+  .box{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .box.accent{ border-left:4px solid var(--red); }
+  .box .name{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:15px; margin-bottom:6px; color:var(--steel); }
+  .box .addr{ font-size:12px; color:var(--steel-light); line-height:1.5; }
+  .box .materiel{ font-weight:700; font-size:13px; margin-bottom:4px; }
+  .box .motif{ font-size:12px; font-weight:600; color:var(--red); }
+  textarea.field{ resize:none; font-family:inherit; }
+
+  .photos-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .photo-slot{ position:relative; aspect-ratio:1; border-radius:6px; background:#EEF0F1; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .photo-slot img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .photo-remove{ position:absolute; top:2px; right:2px; width:16px; height:16px; border-radius:50%; background:rgba(30,34,38,.65); border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .photo-remove svg{ stroke:#fff; }
+  .photo-add{ aspect-ratio:1; border-radius:6px; background:none; border:2px dashed #C9CDD1; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .photo-label{ font-size:11px; font-weight:600; color:var(--steel-light); margin-bottom:6px; }
+
+  canvas{ touch-action:none; width:100%; height:130px; display:block; background:#FAFAFA; border-radius:12px; }
+  .sig-wrap{ position:relative; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .sig-placeholder{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; color:#B4B9BE; pointer-events:none; }
+  .sig-clear{ position:absolute; top:8px; right:8px; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:5px 8px; font-size:10px; font-weight:600; color:var(--steel-light); display:flex; align-items:center; gap:4px; cursor:pointer; }
+
+  .footer{ padding:12px 16px; background:var(--card); border-top:1px solid var(--border); flex-shrink:0; display:flex; gap:8px; }
+  .btn-primary{ flex:1; border:none; border-radius:8px; padding:15px; font-size:14px; font-weight:700; font-family:inherit; color:#fff; background:var(--red); cursor:pointer; }
+  .btn-primary:disabled{ background:#E5E7E9; color:#AEB4B9; }
+  .btn-primary.done{ background:#2E8B57; }
+  .btn-print{ display:none; align-items:center; justify-content:center; gap:6px; border:1px solid var(--border); border-radius:8px; padding:0 16px; font-size:13px; font-weight:700; font-family:inherit; color:var(--steel); background:var(--card); cursor:pointer; flex-shrink:0; }
+  .btn-print.show{ display:flex; }
+  .link-btn{ background:none; border:none; display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#3D7AA6; padding:0; cursor:pointer; font-family:inherit; }
+
+  /* Suppression */
+  .topbar-spacer{ flex:1; }
+  .icon-btn{ background:none; border:none; padding:8px; display:flex; align-items:center; cursor:pointer; border-radius:8px; }
+  .icon-btn svg{ stroke:#fff; }
+  .icon-btn.danger:active{ background:rgba(255,255,255,.12); }
+  .card-delete{ background:none; border:none; padding:6px; margin:-6px -6px -6px 0; cursor:pointer; display:flex; align-items:center; flex-shrink:0; border-radius:6px; }
+  .card-delete svg{ stroke:var(--steel-light); }
+  .card-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+
+  /* Impression : n'affiche que la fiche courante, sans les contrôles */
+  @media print{
+    body{ background:#fff; padding:0; }
+    .screen{ display:none !important; }
+    #screen-fiche.active{ display:block !important; height:auto; }
+    #screen-fiche .back-btn, #screen-fiche .icon-btn, #screen-fiche .footer,
+    .sig-clear, .photo-add{ display:none !important; }
+    #screen-fiche .topbar{ background:#fff !important; padding:0 0 12px; border-bottom:2px solid var(--steel); }
+    #screen-fiche .title, #screen-fiche .eyebrow{ color:var(--steel) !important; }
+    #screen-fiche .fiche-id{ color:var(--red) !important; }
+    #screen-fiche .content{ overflow:visible; padding:16px 0; gap:14px; }
+    .field, textarea.field{ border:1px solid var(--border) !important; }
+  }
+
+  /* Boîte de confirmation personnalisée (remplace window.confirm, bloqué dans certains aperçus) */
+  .confirm-overlay{ display:none; position:fixed; inset:0; background:rgba(30,34,38,.55); z-index:50; align-items:center; justify-content:center; padding:24px; }
+  .confirm-overlay.active{ display:flex; }
+  .confirm-box{ background:var(--card); border-radius:14px; padding:20px; width:100%; max-width:300px; box-shadow:0 12px 30px rgba(0,0,0,.25); }
+  .confirm-title{ font-weight:700; font-size:15px; color:var(--steel); margin-bottom:6px; }
+  .confirm-msg{ font-size:13px; color:var(--steel-light); line-height:1.5; margin-bottom:16px; }
+  .confirm-actions{ display:flex; gap:8px; }
+  .confirm-actions button{ flex:1; border:none; border-radius:8px; padding:11px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; }
+  .confirm-cancel{ background:#EEF0F1; color:var(--steel); }
+  .confirm-ok{ background:var(--red); color:#fff; }
+</style>
+</head>
+<body>
+
+<!-- ÉCRAN LISTE -->
+<div class="screen active" id="screen-list">
+  <div class="topbar">
+    <div class="logo-box"><img src="MAUPU_LOGO_PLACEHOLDER" alt="Maupu" onerror="this.style.display='none'"></div>
+    <div>
+      <div class="eyebrow">Toutes les interventions</div>
+      <div class="title">Interventions</div>
+    </div>
+    <div class="sync-pill" id="sync-pill">…</div>
+  </div>
+  <div class="search-wrap">
+    <div class="search-box">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7684" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search-input" placeholder="Rechercher un client, une référence..." oninput="renderList()">
+    </div>
+  </div>
+  <div class="list" id="list-container"></div>
+  <button class="fab" onclick="showScreen('create')">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+</div>
+
+<!-- ÉCRAN CRÉATION -->
+<div class="screen" id="screen-create">
+  <div class="topbar with-back">
+    <button class="back-btn" onclick="showScreen('list')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+    <div class="title">Nouvelle intervention</div>
+  </div>
+  <div class="content">
+    <div>
+      <div class="section-label">Client</div>
+      <input class="field" id="f-client" placeholder="Nom du client / société" oninput="checkValid()">
+      <input class="field" id="f-adresse" placeholder="Adresse" oninput="checkValid()">
+    </div>
+    <div>
+      <div class="section-label">Date &amp; heure</div>
+      <div class="field-row">
+        <input class="field" id="f-date" placeholder="Ex. 14 août">
+        <input class="field" id="f-heure" placeholder="Ex. 09:00">
+      </div>
+    </div>
+    <div>
+      <div class="section-label">Matériel &amp; motif</div>
+      <input class="field" id="f-materiel" placeholder="Matériel concerné (type, référence)">
+      <input class="field" id="f-motif" placeholder="Motif de l'intervention">
+    </div>
+  </div>
+  <div class="footer">
+    <button class="btn-primary" id="btn-create" disabled onclick="createIntervention()">Créer l'intervention</button>
+  </div>
+</div>
+
+<!-- ÉCRAN FICHE -->
+<div class="screen" id="screen-fiche">
+  <div class="topbar with-back">
+    <button class="back-btn" onclick="showScreen('list')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+    <div>
+      <div class="title">Fiche d'intervention</div>
+      <div class="fiche-id" id="fiche-id"></div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <button class="icon-btn danger" onclick="deleteFiche()" title="Supprimer">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
+    </button>
+  </div>
+  <div class="content">
+    <div>
+      <div class="section-label">Client</div>
+      <div class="box accent">
+        <div class="name" id="fiche-client"></div>
+        <div class="addr" id="fiche-adresse"></div>
+      </div>
+    </div>
+    <div>
+      <div class="section-label">Matériel &amp; motif</div>
+      <div class="box">
+        <div class="materiel" id="fiche-materiel"></div>
+        <div class="motif" id="fiche-motif"></div>
+      </div>
+    </div>
+    <div>
+      <div class="section-label">Diagnostic &amp; travaux réalisés</div>
+      <textarea class="field" id="f-diagnostic" rows="4" placeholder="Décrire le diagnostic, les pièces remplacées, les observations..."></textarea>
+    </div>
+    <div>
+      <div class="section-label">Photos</div>
+      <div class="box" style="display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <div class="photo-label">Avant</div>
+          <div class="photos-grid" id="photos-avant"></div>
+        </div>
+        <div>
+          <div class="photo-label">Après</div>
+          <div class="photos-grid" id="photos-apres"></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="section-label">Signature client</div>
+      <div class="sig-wrap">
+        <canvas id="sig-canvas"></canvas>
+        <div class="sig-placeholder" id="sig-placeholder">Signer ici</div>
+        <button class="sig-clear" onclick="clearSignature()">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6B7684" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          Effacer
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    <button class="btn-primary" id="btn-valider" onclick="validerFiche()">Valider la fiche</button>
+    <button class="btn-print" id="btn-print" onclick="window.print()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+      Imprimer
+    </button>
+  </div>
+</div>
+
+<!-- Boîte de confirmation (suppression) -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-title">Supprimer la fiche ?</div>
+    <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="confirm-actions">
+      <button class="confirm-cancel" onclick="closeConfirm()">Annuler</button>
+      <button class="confirm-ok" onclick="confirmOk()">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ---------- Connexion Supabase ----------
+const SUPABASE_URL = 'https://gzxlxyoxmefcpibtjkyv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6eGx4eW94bWVmY3BpYnRqa3l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MjIxNTAsImV4cCI6MjEwMjA5ODE1MH0.Q7RZN00ux4mcwfeetgGTEcZMxzDr1mFTh0aJhibfi3k';
+const PHOTOS_BUCKET = 'interventions-photos';
+
+// Ne doit JAMAIS lever d'exception : si la lib Supabase (chargée depuis un CDN
+// externe) ne s'est pas chargée, on veut quand même que le reste de l'app
+// (navigation, boutons) continue de fonctionner, avec un message d'erreur clair
+// au moment d'une action qui a besoin de la base.
+let sb = null;
+try{
+  if(window.supabase && typeof window.supabase.createClient === 'function'){
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } else {
+    console.error('Librairie Supabase non chargée (CDN indisponible ?)');
+  }
+}catch(e){
+  console.error('Échec de connexion Supabase :', e);
+}
+
+// ---------- Petit toast d'erreur (au lieu de alert(), parfois bloqué en aperçu) ----------
+function showToast(msg){
+  let t = document.getElementById('toast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));background:#3D4750;color:#fff;padding:12px 16px;border-radius:10px;font-size:13px;font-family:inherit;z-index:100;box-shadow:0 8px 20px rgba(0,0,0,.25);';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.display = 'none', 3500);
+}
+
+// ---------- Données ----------
+let interventions = [];
+let currentFiche = null;
+
+// ---------- Cache local & file d'attente hors-ligne ----------
+const CACHE_KEY = 'mi_cache_interventions';
+const QUEUE_KEY = 'mi_sync_queue';
+
+function loadCache(){ try{ return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]'); }catch(e){ return []; } }
+function saveCache(list){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(list)); }catch(e){ console.error('Cache local plein ou indisponible', e); } }
+function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }catch(e){ return []; } }
+function saveQueue(q){ try{ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }catch(e){ console.error('File d\'attente non sauvegardée', e); } }
+function uid(){ return 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8); }
+function isLocalId(id){ return typeof id === 'string' && id.indexOf('local-') === 0; }
+
+function updateSyncPill(){
+  const pill = document.getElementById('sync-pill');
+  if(!pill) return;
+  const n = loadQueue().length;
+  if(!navigator.onLine){
+    pill.textContent = n ? `Hors-ligne · ${n} en attente` : 'Hors-ligne';
+    pill.className = 'sync-pill offline';
+  } else if(n > 0){
+    pill.textContent = `Synchro… (${n})`;
+    pill.className = 'sync-pill syncing';
+  } else {
+    pill.textContent = 'Synchronisé';
+    pill.className = 'sync-pill online';
+  }
+}
+
+function dataUrlToBlob(dataUrl){
+  const [header, base64] = dataUrl.split(',');
+  const mime = header.match(/:(.*?);/)[1];
+  const bin = atob(base64);
+  const arr = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// Remplace le id local par le id réel partout (cache, file d'attente, mémoire) une fois la création synchronisée
+function remapInterventionId(localId, realId, reference){
+  const cache = loadCache();
+  const it = cache.find(i => i.id === localId);
+  if(it){ it.id = realId; it.reference = reference; saveCache(cache); }
+  if(currentFiche && currentFiche.id === localId){ currentFiche.id = realId; currentFiche.reference = reference; }
+  const mem = interventions.find(i => i.id === localId);
+  if(mem){ mem.id = realId; mem.reference = reference; }
+  const queue = loadQueue();
+  queue.forEach(e => { if(e.id === localId) e.id = realId; });
+  saveQueue(queue);
+}
+function remapPhotoId(localPhotoId, realId, realUrl){
+  const cache = loadCache();
+  cache.forEach(it => {
+    if(it._photos){
+      const p = it._photos.find(ph => ph.id === localPhotoId);
+      if(p){ p.id = realId; p.url = realUrl; }
+    }
+  });
+  saveCache(cache);
+  const slot = document.querySelector(`.photo-slot[data-photo-id="${localPhotoId}"]`);
+  if(slot) slot.dataset.photoId = realId;
+}
+
+// Traite la file d'attente dans l'ordre ; s'arrête au premier échec (réessaiera plus tard)
+let syncing = false;
+async function processQueue(){
+  if(syncing || !navigator.onLine || !sb) { updateSyncPill(); return; }
+  syncing = true;
+  while(true){
+    const queue = loadQueue(); // relu à chaque tour : un remap d'id (après une création) doit être visible immédiatement
+    if(queue.length === 0) break;
+    const entry = queue[0];
+    try{
+      if(entry.kind === 'create'){
+        const { data, error } = await sb.from('interventions').insert(entry.payload).select().single();
+        if(error) throw error;
+        remapInterventionId(entry.localId, data.id, data.reference);
+      } else if(entry.kind === 'update'){
+        const { error } = await sb.from('interventions').update(entry.payload).eq('id', entry.id);
+        if(error) throw error;
+      } else if(entry.kind === 'photo'){
+        const blob = dataUrlToBlob(entry.dataUrl);
+        const path = `${entry.id}/${entry.type}-${Date.now()}.jpg`;
+        const { error: upErr } = await sb.storage.from(PHOTOS_BUCKET).upload(path, blob);
+        if(upErr) throw upErr;
+        const { data: pub } = sb.storage.from(PHOTOS_BUCKET).getPublicUrl(path);
+        const { data: row, error: insErr } = await sb.from('interventions_photos')
+          .insert({ intervention_id: entry.id, type: entry.type, url: pub.publicUrl }).select().single();
+        if(insErr) throw insErr;
+        remapPhotoId(entry.localPhotoId, row.id, row.url);
+      } else if(entry.kind === 'delete'){
+        if(!isLocalId(entry.id)){
+          const { error } = await sb.from('interventions').delete().eq('id', entry.id);
+          if(error) throw error;
+        }
+      }
+    }catch(e){
+      console.error('Synchronisation en attente (nouvelle tentative plus tard) :', e);
+      break;
+    }
+    const freshQueue = loadQueue();
+    freshQueue.shift();
+    saveQueue(freshQueue);
+    updateSyncPill();
+  }
+  syncing = false;
+  updateSyncPill();
+  if(loadQueue().length === 0 && document.getElementById('screen-list').classList.contains('active')){
+    loadInterventions();
+  }
+}
+window.addEventListener('online', () => { updateSyncPill(); processQueue(); });
+window.addEventListener('offline', () => { updateSyncPill(); });
+
+// ---------- Navigation ----------
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  if(name === 'list') renderList();
+  if(name === 'create'){
+    ['f-client','f-adresse','f-date','f-heure','f-materiel','f-motif'].forEach(id => document.getElementById(id).value = '');
+    checkValid();
+  }
+}
+
+// ---------- Liste ----------
+async function loadInterventions(){
+  const container = document.getElementById('list-container');
+  if(!navigator.onLine || !sb){
+    interventions = loadCache();
+    renderList();
+    updateSyncPill();
+    return;
+  }
+  container.innerHTML = `<div class="empty">Chargement…</div>`;
+  try{
+    const { data, error } = await sb.from('interventions').select('*').order('created_at', { ascending: false });
+    if(error) throw error;
+    const localOnly = loadCache().filter(it => isLocalId(it.id));
+    interventions = [...localOnly, ...data];
+    saveCache(interventions);
+    renderList();
+  }catch(e){
+    console.error(e);
+    interventions = loadCache();
+    if(interventions.length){
+      renderList();
+      showToast('Hors-ligne : affichage des données en cache.');
+    } else {
+      container.innerHTML = `<div class="empty">Impossible de charger les interventions.</div>`;
+    }
+  }
+  updateSyncPill();
+}
+function renderList(){
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const pendingIds = new Set(loadQueue().map(e => e.id).filter(Boolean));
+  const filtered = interventions.filter(it => !q ||
+    it.client.toLowerCase().includes(q) || (it.motif||'').toLowerCase().includes(q) ||
+    (it.materiel||'').toLowerCase().includes(q) || (it.reference||'').toLowerCase().includes(q) ||
+    it.adresse.toLowerCase().includes(q));
+  const container = document.getElementById('list-container');
+  if(filtered.length === 0){
+    container.innerHTML = `<div class="empty">${interventions.length === 0 ? 'Aucune intervention pour le moment.' : `Aucune intervention ne correspond à « ${escapeHtml(q)} »`}</div>`;
+    return;
+  }
+  container.innerHTML = filtered.map(it => `
+    <div class="card" onclick="openFiche('${it.id}')">
+      <div class="card-top">
+        <div class="meta">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          ${escapeHtml(it.date_intervention || '—')} · ${escapeHtml(it.heure || '—')}
+          ${(isLocalId(it.id) || pendingIds.has(it.id)) ? '<span class="pending-tag">En attente</span>' : ''}
+        </div>
+        <button class="card-delete" onclick="event.stopPropagation(); deleteIntervention('${it.id}')" title="Supprimer">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
+        </button>
+      </div>
+      <div class="client">${escapeHtml(it.client)}</div>
+      <div class="addr">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        ${escapeHtml(it.adresse)}
+      </div>
+      <div class="motif">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m14.7 6.3-1.4 1.4 3 3 1.4-1.4a3 3 0 0 0-3-3ZM3 21l4-1 9.6-9.6-3-3L4 17l-1 4Z"/></svg>
+        ${escapeHtml(it.motif || '—')}
+      </div>
+    </div>
+  `).join('');
+}
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- Confirmation (remplace window.confirm) ----------
+let confirmCallback = null;
+function showConfirm(msg, cb){
+  document.getElementById('confirm-msg').textContent = msg;
+  confirmCallback = cb;
+  document.getElementById('confirm-overlay').classList.add('active');
+}
+function closeConfirm(){
+  document.getElementById('confirm-overlay').classList.remove('active');
+  confirmCallback = null;
+}
+function confirmOk(){
+  if(confirmCallback) confirmCallback();
+  closeConfirm();
+}
+
+function deleteIntervention(id){
+  const it = interventions.find(i => i.id === id) || loadCache().find(i => i.id === id);
+  if(!it) return;
+  showConfirm(`${it.reference || 'Brouillon'} — ${it.client}. Cette action est définitive.`, () => removeIntervention(id));
+}
+function deleteFiche(){
+  if(!currentFiche) return;
+  const id = currentFiche.id;
+  showConfirm(`${currentFiche.reference || 'Brouillon'} — ${currentFiche.client}. Cette action est définitive.`, () => {
+    removeIntervention(id);
+    currentFiche = null;
+    showScreen('list');
+  });
+}
+async function removeIntervention(id){
+  interventions = interventions.filter(i => i.id !== id);
+  const cache = loadCache().filter(i => i.id !== id);
+  saveCache(cache);
+  if(isLocalId(id)){
+    // Jamais synchronisée : on annule juste tout ce qui était en attente pour elle
+    const queue = loadQueue().filter(e => e.id !== id && e.localId !== id);
+    saveQueue(queue);
+    updateSyncPill();
+    renderList();
+    return;
+  }
+  if(navigator.onLine && sb){
+    const { error } = await sb.from('interventions').delete().eq('id', id);
+    if(error){ showToast('Suppression impossible : ' + error.message); return; }
+  } else {
+    const queue = loadQueue();
+    queue.push({ kind: 'delete', id });
+    saveQueue(queue);
+    updateSyncPill();
+  }
+  renderList();
+}
+
+// ---------- Création ----------
+function checkValid(){
+  const valid = document.getElementById('f-client').value.trim() && document.getElementById('f-adresse').value.trim();
+  document.getElementById('btn-create').disabled = !valid;
+}
+async function createIntervention(){
+  const btn = document.getElementById('btn-create');
+  const payload = {
+    date_intervention: document.getElementById('f-date').value.trim() || null,
+    heure: document.getElementById('f-heure').value.trim() || null,
+    client: document.getElementById('f-client').value.trim(),
+    adresse: document.getElementById('f-adresse').value.trim(),
+    materiel: document.getElementById('f-materiel').value.trim() || null,
+    motif: document.getElementById('f-motif').value.trim() || null
+  };
+  if(!navigator.onLine || !sb){
+    const localId = uid();
+    const newIt = Object.assign({ id: localId, reference: null, diagnostic: null, signature: null, valide: false, created_at: new Date().toISOString(), _photos: [] }, payload);
+    interventions.unshift(newIt);
+    const cache = loadCache(); cache.unshift(newIt); saveCache(cache);
+    const queue = loadQueue(); queue.push({ kind: 'create', localId, payload }); saveQueue(queue);
+    updateSyncPill();
+    openFiche(localId);
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Création…';
+  const { data, error } = await sb.from('interventions').insert(payload).select().single();
+  btn.textContent = "Créer l'intervention";
+  if(error){
+    showToast('Création impossible : ' + error.message);
+    checkValid();
+    return;
+  }
+  interventions.unshift(data);
+  const cache = loadCache(); cache.unshift(data); saveCache(cache);
+  openFiche(data.id);
+}
+
+// ---------- Fiche ----------
+async function openFiche(id){
+  currentFiche = interventions.find(it => it.id === id) || loadCache().find(it => it.id === id);
+  if(!currentFiche && navigator.onLine && sb){
+    const { data } = await sb.from('interventions').select('*').eq('id', id).single();
+    currentFiche = data;
+  }
+  if(!currentFiche) return;
+  document.getElementById('fiche-id').textContent = currentFiche.reference || 'Brouillon (hors-ligne)';
+  document.getElementById('fiche-client').textContent = currentFiche.client;
+  document.getElementById('fiche-adresse').textContent = currentFiche.adresse;
+  document.getElementById('fiche-materiel').textContent = currentFiche.materiel || '—';
+  document.getElementById('fiche-motif').textContent = currentFiche.motif || '—';
+  document.getElementById('f-diagnostic').value = currentFiche.diagnostic || '';
+  document.getElementById('photos-avant').innerHTML = photoSlots();
+  document.getElementById('photos-apres').innerHTML = photoSlots();
+  const btn = document.getElementById('btn-valider');
+  const printBtn = document.getElementById('btn-print');
+  if(currentFiche.valide){
+    btn.textContent = 'Fiche enregistrée ✓';
+    btn.classList.add('done');
+    printBtn.classList.add('show');
+  } else {
+    btn.textContent = 'Valider la fiche';
+    btn.classList.remove('done');
+    printBtn.classList.remove('show');
+  }
+  showScreen('fiche');
+  setTimeout(initSignature, 0);
+  loadPhotos(id);
+}
+async function loadPhotos(interventionId){
+  let photos = [];
+  if(navigator.onLine && sb && !isLocalId(interventionId)){
+    try{
+      const { data, error } = await sb
+        .from('interventions_photos')
+        .select('*')
+        .eq('intervention_id', interventionId)
+        .order('created_at', { ascending: true });
+      if(error) throw error;
+      photos = data;
+    }catch(e){
+      console.error(e);
+      showToast('Erreur photos : ' + e.message);
+    }
+  }
+  const cached = loadCache().find(it => it.id === interventionId);
+  const localPending = (cached && cached._photos) ? cached._photos.filter(p => isLocalId(p.id)) : [];
+  photos = [...photos, ...localPending];
+  photos.forEach(photo => {
+    const container = document.getElementById(photo.type === 'avant' ? 'photos-avant' : 'photos-apres');
+    const addBtn = container.querySelector('.photo-add');
+    const slot = buildPhotoSlot(photo.url, photo.id);
+    container.insertBefore(slot, addBtn);
+  });
+}
+function buildPhotoSlot(url, photoId){
+  const slot = document.createElement('div');
+  slot.className = 'photo-slot filled';
+  slot.dataset.photoId = photoId || '';
+  slot.innerHTML = `<img src="${url}" alt="photo intervention">
+    <button class="photo-remove" onclick="removePhoto(this)" title="Retirer">
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>`;
+  return slot;
+}
+async function removePhoto(btn){
+  const slot = btn.parentElement;
+  const photoId = slot.dataset.photoId;
+  if(photoId && isLocalId(photoId)){
+    // Photo pas encore envoyée : on la retire simplement de la file d'attente et du cache
+    const queue = loadQueue().filter(e => !(e.kind === 'photo' && e.localPhotoId === photoId));
+    saveQueue(queue);
+    const cache = loadCache();
+    cache.forEach(it => { if(it._photos) it._photos = it._photos.filter(p => p.id !== photoId); });
+    saveCache(cache);
+    updateSyncPill();
+  } else if(photoId){
+    if(!navigator.onLine || !sb){
+      showToast('Suppression impossible hors-ligne pour une photo déjà envoyée.');
+      return;
+    }
+    const { error } = await sb.from('interventions_photos').delete().eq('id', photoId);
+    if(error){ showToast('Suppression photo impossible : ' + error.message); return; }
+  }
+  slot.remove();
+}
+function photoSlots(){
+  return `<button class="photo-add" onclick="addPhoto(this)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C41E2E" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg>
+  </button>`;
+}
+async function addPhoto(btn){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.capture = 'environment'; // ouvre l'appareil photo arrière directement sur mobile
+  input.style.display = 'none';
+  input.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file || !currentFiche) return;
+    const type = btn.closest('.photos-grid').id === 'photos-avant' ? 'avant' : 'apres';
+
+    if(!navigator.onLine || !sb){
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target.result;
+        const localPhotoId = uid();
+        const cache = loadCache();
+        let it = cache.find(i => i.id === currentFiche.id);
+        if(!it){ it = Object.assign({}, currentFiche); cache.push(it); }
+        it._photos = it._photos || [];
+        it._photos.push({ id: localPhotoId, type, url: dataUrl });
+        saveCache(cache);
+        const queue = loadQueue();
+        queue.push({ kind: 'photo', id: currentFiche.id, localPhotoId, type, dataUrl });
+        saveQueue(queue);
+        updateSyncPill();
+        const slot = buildPhotoSlot(dataUrl, localPhotoId);
+        btn.parentNode.insertBefore(slot, btn);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${currentFiche.id}/${type}-${Date.now()}.${ext}`;
+    btn.disabled = true;
+    const { error: uploadError } = await sb.storage.from(PHOTOS_BUCKET).upload(path, file);
+    if(uploadError){
+      showToast('Envoi de la photo impossible : ' + uploadError.message);
+      btn.disabled = false;
+      return;
+    }
+    const { data: pub } = sb.storage.from(PHOTOS_BUCKET).getPublicUrl(path);
+    const { data: row, error: insertError } = await sb
+      .from('interventions_photos')
+      .insert({ intervention_id: currentFiche.id, type, url: pub.publicUrl })
+      .select().single();
+    btn.disabled = false;
+    if(insertError){
+      showToast('Enregistrement de la photo impossible : ' + insertError.message);
+      return;
+    }
+    const slot = buildPhotoSlot(row.url, row.id);
+    btn.parentNode.insertBefore(slot, btn);
+  });
+  document.body.appendChild(input);
+  input.click();
+  setTimeout(() => input.remove(), 1000);
+}
+async function validerFiche(){
+  if(!currentFiche) return;
+  const btn = document.getElementById('btn-valider');
+  const diagnostic = document.getElementById('f-diagnostic').value.trim();
+  const signature = hasSignature ? document.getElementById('sig-canvas').toDataURL('image/png') : null;
+  const payload = { diagnostic, signature, valide: true };
+
+  if(!navigator.onLine || !sb){
+    Object.assign(currentFiche, payload);
+    const cache = loadCache();
+    const idx = cache.findIndex(i => i.id === currentFiche.id);
+    if(idx > -1) Object.assign(cache[idx], payload); else cache.push(Object.assign({}, currentFiche));
+    saveCache(cache);
+    const queue = loadQueue();
+    queue.push({ kind: 'update', id: currentFiche.id, payload });
+    saveQueue(queue);
+    updateSyncPill();
+    btn.textContent = 'Enregistrée (en attente) ✓';
+    btn.classList.add('done');
+    document.getElementById('btn-print').classList.add('show');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement…';
+  const { error } = await sb.from('interventions').update(payload).eq('id', currentFiche.id);
+  btn.disabled = false;
+  if(error){
+    showToast('Validation impossible : ' + error.message);
+    btn.textContent = 'Valider la fiche';
+    return;
+  }
+  Object.assign(currentFiche, payload);
+  const cache = loadCache();
+  const idx = cache.findIndex(i => i.id === currentFiche.id);
+  if(idx > -1) Object.assign(cache[idx], payload);
+  saveCache(cache);
+  btn.textContent = 'Fiche enregistrée ✓';
+  btn.classList.add('done');
+  document.getElementById('btn-print').classList.add('show');
+}
+
+// ---------- Signature (canvas) ----------
+let sigCtx, drawing = false, hasSignature = false;
+function initSignature(){
+  const canvas = document.getElementById('sig-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = rect.width * ratio;
+  canvas.height = rect.height * ratio;
+  sigCtx = canvas.getContext('2d');
+  sigCtx.scale(ratio, ratio);
+  sigCtx.strokeStyle = '#3D4750';
+  sigCtx.lineWidth = 2.5;
+  sigCtx.lineCap = 'round';
+  hasSignature = false;
+  document.getElementById('sig-placeholder').style.display = 'flex';
+
+  if(currentFiche && currentFiche.signature){
+    const img = new Image();
+    img.onload = () => { sigCtx.drawImage(img, 0, 0, rect.width, rect.height); };
+    img.src = currentFiche.signature;
+    hasSignature = true;
+    document.getElementById('sig-placeholder').style.display = 'none';
+  }
+
+  const pos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  };
+  const start = (e) => { e.preventDefault(); drawing = true; hasSignature = true; document.getElementById('sig-placeholder').style.display='none'; const p = pos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); };
+  const move = (e) => { if(!drawing) return; e.preventDefault(); const p = pos(e); sigCtx.lineTo(p.x, p.y); sigCtx.stroke(); };
+  const end = () => drawing = false;
+
+  canvas.onmousedown = start; canvas.onmousemove = move; canvas.onmouseup = end; canvas.onmouseleave = end;
+  canvas.ontouchstart = start; canvas.ontouchmove = move; canvas.ontouchend = end;
+}
+function clearSignature(){
+  const canvas = document.getElementById('sig-canvas');
+  sigCtx.clearRect(0, 0, canvas.width, canvas.height);
+  hasSignature = false;
+  document.getElementById('sig-placeholder').style.display = 'flex';
+}
+
+// ---------- Init ----------
+loadInterventions();
+processQueue();
+</script>
+</body>
+</html>
